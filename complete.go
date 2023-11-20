@@ -15,13 +15,13 @@ type AutoCompleter interface {
 	//   Do("g", 1) => ["o", "it", "it-shell", "rep"], 1
 	//   Do("gi", 2) => ["t", "t-shell"], 2
 	//   Do("git", 3) => ["", "-shell"], 3
-	Do(line []rune, pos int) (newLine [][]rune, length int)
+	Do(line []rune, pos int) (newLine [][]rune, length int, offset int)
 }
 
 type TabCompleter struct{}
 
-func (t *TabCompleter) Do([]rune, int) ([][]rune, int) {
-	return [][]rune{[]rune("\t")}, 0
+func (t *TabCompleter) Do([]rune, int) ([][]rune, int, int) {
+	return [][]rune{[]rune("\t")}, 1, 0
 }
 
 type opCompleter struct {
@@ -84,29 +84,37 @@ func (o *opCompleter) OnComplete() bool {
 
 	o.ExitCompleteSelectMode()
 	o.candidateSource = rs
-	newLines, offset := o.op.cfg.AutoComplete.Do(rs, buf.idx)
+	newLines, length, _ := o.op.cfg.AutoComplete.Do(rs, buf.idx)
 	if len(newLines) == 0 {
+		if length > 0 {
+			buf.WriteRunes([]rune{})
+		}
 		o.ExitCompleteMode(false)
 		return true
 	}
 
 	// only Aggregate candidates in non-complete mode
 	if !o.IsInCompleteMode() {
-		if len(newLines) == 1 {
+		//if len(newLines) == 1 {
+		if length == 1 && len(newLines) == 1 {
 			buf.WriteRunes(newLines[0])
 			o.ExitCompleteMode(false)
 			return true
 		}
 
-		same, size := runes.Aggregate(newLines)
-		if size > 0 {
-			buf.WriteRunes(same)
-			o.ExitCompleteMode(false)
-			return true
+		if length == len(newLines) {
+			same, size := runes.Aggregate(newLines)
+			if size > 0 {
+				buf.WriteRunes(same)
+				o.ExitCompleteMode(false)
+				return true
+			}
 		}
 	}
 
-	o.EnterCompleteMode(offset, newLines)
+	//o.EnterCompleteMode(offset, newLines)
+	buf.WriteRunes([]rune{})
+	o.ExitCompleteMode(false)
 	return true
 }
 
